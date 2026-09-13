@@ -1,0 +1,35 @@
+version: "3.8"
+services:
+  api:
+    build: .
+    ports:
+      - "8001:8000"
+    env_file: .env
+    depends_on:
+      - postgres
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: finance_api
+      POSTGRES_USER: redou
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+  n8n:
+    image: n8nio/n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=finance_api
+      - DB_POSTGRESDB_USER=redou
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - n8n_data:/home/node/.n8n
+volumes:
+  pg_data:
+  n8n_data:
