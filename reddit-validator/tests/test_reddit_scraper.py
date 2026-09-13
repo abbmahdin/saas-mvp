@@ -1,6 +1,6 @@
 """Tests for the Reddit scraper service."""
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 from src.services.reddit_scraper import scrape_subreddit, RedditScraperError
 
 
@@ -82,7 +82,11 @@ class TestScrapeSubreddit:
                 p.score = i
                 posts.append(p)
 
-            mock_subreddit.hot.return_value = posts
+            # Mock hot() to respect the limit parameter
+            def mock_hot(limit=None):
+                return posts[:limit] if limit else posts
+
+            mock_subreddit.hot.side_effect = mock_hot
             mock_reddit_cls.return_value = mock_reddit
 
             result = scrape_subreddit("test", limit=5)
@@ -130,7 +134,10 @@ class TestScrapeSubreddit:
                 p.score = i
                 posts.append(p)
 
-            mock_subreddit.hot.return_value = posts
+            def mock_hot(limit=None):
+                return posts[:limit] if limit else posts
+
+            mock_subreddit.hot.side_effect = mock_hot
             mock_reddit_cls.return_value = mock_reddit
 
             result = scrape_subreddit("test")
