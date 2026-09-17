@@ -1,38 +1,31 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
-let supabaseInstance: SupabaseClient | null = null;
+// IMPORTANT: Replace the anon key in .env.local with the FULL key from Supabase dashboard
+// The current one in .env.local is truncated (eyJhbG...Z6iM)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-export function getSupabaseClient(): SupabaseClient {
-  if (!supabaseInstance) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing Supabase environment variables');
-    }
-
-    supabaseInstance = createClient(supabaseUrl, supabaseKey);
-  }
-
-  return supabaseInstance;
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Supabase URL and key must be set in .env.local');
 }
 
-export function resetSupabaseClient(): void {
-  supabaseInstance = null;
-}
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
-export function createSupabaseServerClient(): SupabaseClient {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Subscribe user to free plan
+export async function subscribe(email: string, plan: string = 'free') {
+  try {
+    const { data, error } = await supabase
+      .from('subscribers')
+      .insert({
+        email,
+        plan,
+        status: 'active',
+        created_at: new Date().toISOString(),
+      })
+      .select();
 
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Missing Supabase environment variables');
+    return { success: !error, data, error };
+  } catch (err) {
+    return { success: false, error: err };
   }
-
-  return createClient(supabaseUrl, supabaseKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
 }
