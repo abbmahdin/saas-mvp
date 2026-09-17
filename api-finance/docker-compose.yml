@@ -1,0 +1,103 @@
+version: "3.9"
+
+services:
+  # FastAPI Application
+  api-finance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api-finance
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-changeme}@postgres:5432/api_finance
+      - X402_RECIPIENT=${X402_RECIPIENT:-0x0000000000000000000000000000000000000000}
+      - LOG_LEVEL=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - finance-net
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: api-finance-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - POSTGRES_DB=api_finance
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d api_finance"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - finance-net
+
+  # n8n Workflow Automation
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: api-finance-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-changeme}
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=n8n-postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=${N8N_DB_PASSWORD:-changeme}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      n8n-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - finance-net
+
+  # n8n PostgreSQL (separate from app DB)
+  n8n-postgres:
+    image: postgres:16-alpine
+    container_name: api-finance-n8n-postgres
+    environment:
+      - POSTGRES_USER=n8n
+      - POSTGRES_PASSWORD=${N8N_DB_PASSWORD:-changeme}
+      - POSTGRES_DB=n8n
+    volumes:
+      - n8n_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n -d n8n"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - finance-net
+
+volumes:
+  postgres_data:
+    driver: local
+  n8n_data:
+    driver: local
+  n8n_postgres_data:
+    driver: local
+
+networks:
+  finance-net:
+    driver: bridge
